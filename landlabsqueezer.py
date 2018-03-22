@@ -46,37 +46,38 @@ def main(infiles, compress, level):
 
                 if level == 'CHICKEN':
                     ENCODING = dict(zlib=True)
-                elif level in ['HARD']:
-                    # option medium disabled for the moment - not sure if we have a dtype problem
+                elif level in ['MEDIUM', 'HARD']:
                     if level == 'MEDIUM':
                         ctype = 'int32'
+                        scale_ = 0.001
                     else:
                         ctype = 'int16'
-                    max_int = np.iinfo(ctype).max
+                        scale_ = 0.01
+                    #max_int = np.iinfo(ctype).max
 
-                    min_val = ds[data_var].min().values
-                    max_val = ds[data_var].max().values
-                    offset_ = min_val
+                    #min_val = ds[data_var].min().values
+                    #max_val = ds[data_var].max().values
+                    #offset_ = min_val
 
-                    if max_val - min_val == 0:
-                        scale_ = 1.0
-                    else:
-                        scale_ = float(max_int / (max_val - min_val))
+                    #if max_val - min_val == 0:
+                    #    scale_ = 1.0
+                    #else:
+                    #    scale_ = float(max_int / (max_val - min_val))
                     if ds[data_var].dtype == 'float64':
                         ENCODING = dict(dtype=ctype, 
-                                        add_offset=offset_,
+                                        #add_offset=offset_,
                                         scale_factor=scale_,
                                         zlib=True,
-                                        _FillValue=np.nan)
+                                        _FillValue=-9999)
                     else:
                         ENCODING = dict(zlib=True)
-                    ds[data_var] = ds[data_var].astype(ctype) #, casting='unsafe') 
+                    ds[data_var] = ds[data_var].astype(ctype, casting='unsafe') 
                     
                 ds[data_var].extra.update_encoding(ENCODING)
                 del ENCODING
             
             fout = f.replace('.nc', '_compressed.nc')
-            ds.to_netcdf(fout, format='NETCDF4_CLASSIC', unlimited_dims='nt')
+            ds.to_netcdf(fout, format='NETCDF3_64BIT', unlimited_dims='nt')
 
             if compress:
                 gz_compress(fout)
@@ -88,7 +89,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 click.Context.get_usage = click.Context.get_help
 
 @click.command(context_settings=CONTEXT_SETTINGS, epilog=EPILOG)
-@click.option('--level', type=click.Choice(['CHICKEN', 'HARD']), 
+@click.option('--level', type=click.Choice(['CHICKEN', 'MEDIUM', 'HARD']), 
                     default='CHICKEN', show_default=True,
                     help='compression level')
 @click.option('-c', '--compress',  is_flag=True, 
