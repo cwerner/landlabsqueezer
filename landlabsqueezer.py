@@ -12,7 +12,7 @@ Senckenberg Biodiversity and Climate Research Centre (BiK-F)\r
 2018/03/21"""
 
 @xr.register_dataarray_accessor('extra')
-class TileAccessor(object):
+class ExtraAccessor(object):
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
 
@@ -34,7 +34,6 @@ def gz_compress(fname):
     with open(fname, 'rb') as f_in, gzip.open(f"{fname}.gz", 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
 
-max_int = np.iinfo('int64').max
 
 def main(infiles, compress, level):
     if len(infiles) == 0:
@@ -47,12 +46,13 @@ def main(infiles, compress, level):
 
                 if level == 'CHICKEN':
                     ENCODING = dict(zlib=True)
-                elif level in ['MEDIUM', 'HARD']:
-
+                elif level in ['HARD']:
+                    # option medium disabled for the moment - not sure if we have a dtype problem
                     if level == 'MEDIUM':
                         ctype = 'int32'
                     else:
-                        ctype = 'int64'
+                        ctype = 'int16'
+                    max_int = np.iinfo(ctype).max
 
                     min_val = ds[data_var].min().values
                     max_val = ds[data_var].max().values
@@ -63,9 +63,14 @@ def main(infiles, compress, level):
                     else:
                         scale_ = float(max_int / (max_val - min_val))
                     if ds[data_var].dtype == 'float64':
-                        ENCODING = dict(dtype=ctype, add_offset=offset_, scale_factor=scale_, zlib=True, _FillValue=-9999)
+                        ENCODING = dict(dtype=ctype, 
+                                        add_offset=offset_,
+                                        scale_factor=scale_,
+                                        zlib=True,
+                                        _FillValue=np.nan)
                     else:
                         ENCODING = dict(zlib=True)
+                    ds[data_var] = ds[data_var].astype(ctype) #, casting='unsafe') 
                     
                 ds[data_var].extra.update_encoding(ENCODING)
                 del ENCODING
@@ -78,13 +83,12 @@ def main(infiles, compress, level):
                 os.remove(fout)
 
 
-# CLI
-# command line arguments
+# CLi - command line arguments
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 click.Context.get_usage = click.Context.get_help
 
 @click.command(context_settings=CONTEXT_SETTINGS, epilog=EPILOG)
-@click.option('--level', type=click.Choice(['CHICKEN', 'MEDIUM', 'HARD']), 
+@click.option('--level', type=click.Choice(['CHICKEN', 'HARD']), 
                     default='CHICKEN', show_default=True,
                     help='compression level')
 @click.option('-c', '--compress',  is_flag=True, 
